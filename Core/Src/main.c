@@ -49,6 +49,8 @@ DMA_HandleTypeDef hdma_adc1;
 //Holds the results of the three ADC channels
 uint16_t adcResults[3];
 
+uint16_t adcDMAValues[16*3];
+
 //LED blink delay
 uint16_t ledBlinkDelay = 250;
 
@@ -115,13 +117,50 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_ADC_Start_DMA(&hadc1,adcDMAValues, 3*16);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  //LED blink timer
+	  if(uwTick >= (ledBlinkTimerStart + ledBlinkDelay)){
+
+		  //Toggle the LED
+		  if(ledBlinkState){
+			  HAL_GPIO_WritePin(led_green_GPIO_Port, led_green_Pin, GPIO_PIN_SET);
+			  ledBlinkState = 0;
+		  }else{
+			  HAL_GPIO_WritePin(led_green_GPIO_Port, led_green_Pin, GPIO_PIN_RESET);
+			  ledBlinkState = 1;
+		  }
+		  ledBlinkTimerStart = uwTick;
+
+	  }
+
+	  //ADC Measure Timer
+	  if(uwTick >= (adcMeasureTimerStart + adcMeasureDelay)){
+		  //Start ADC
+		  //HAL_ADC_Start_IT(&hadc1);
+		  adcMeasureTimerStart = uwTick;
+	  }
+
+	  //Print Timer
+	  if(uwTick >= (printTimerStart + printDelay)){
+		  printTimerStart = uwTick;
+		  //Voltage of the pot
+		  float potVoltage = (float)adcResults[0] * (3.3f / 4095.0f);
+
+		  //Voltage of the internal temperature sensor
+		  float intTemp = (((((float)adcResults[2] * (3.3f/4095.0f)) - 0.76f) / 0.0025f) + 25.0f);
+
+		  //Print the three readings
+		  printf("Pot Voltage %0.1fV		External Temp: %0.1f		Internal Temp: %.1f\n",
+				  potVoltage,
+				  convertAnalogToTemperature(adcResults[1]),
+				  intTemp);
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -200,13 +239,13 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = ENABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 3;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
